@@ -99,6 +99,37 @@ def evaluate_model(model, data_loader, device):
 
     return total_correct / total_samples
 
+def process_labels(label_file='labels.json'):
+    with open(label_file, 'r') as f:
+        data = json.load(f)
+
+    labels = data[0]["labels"]
+    class_map = {}
+    all_samples = []
+
+    for label in labels:
+        class_name = label["name"]
+        samples = label["samples"]
+        for sample in samples:
+            class_map[sample] = class_name
+        all_samples.extend(samples)
+    
+    # Add "undefined" class
+    class_map["undefined"] = "undefined"
+    
+    return class_map, all_samples
+
+def create_training_data(samples, class_map):
+    # Generate dataset with "undefined" samples
+    data = []
+    labels = []
+    for sample, label in class_map.items():
+        data.append(sample)
+        labels.append(label)
+
+    # Split into train and validation sets
+    train_samples, val_samples, train_labels, val_labels = train_test_split(data, labels, test_size=0.2)
+    return train_samples, train_labels, val_samples, val_labels
 
 def compute_bert_embeddings(samples, tokenizer, bert_model, device):
     embeddings = []
@@ -182,34 +213,9 @@ if __name__ == "__main__":
         dataset.samples, dataset.labels, test_size=0.2, random_state=42
     )
 
-    # Graph Construction
-    # max_nodes = len(train_samples)  # Limit for graph nodes
-    # train_graph = construct_graph(train_samples, train_labels, tokenizer, max_nodes)
-    # val_graph = construct_graph(val_samples, val_labels, tokenizer, max_nodes)
-
-    # DataLoader
-    # Create a list of Data objects (one for each graph)
-    # train_graphs = [
-    #     construct_graph([sample], [label], tokenizer, max_nodes=1)
-    #     for sample, label in zip(train_samples, train_labels)
-    # ]
-
-    # val_graphs = [
-    #     construct_graph([sample], [label], tokenizer, max_nodes=1)
-    #     for sample, label in zip(val_samples, val_labels)
-    # ]
-
-    # # Use GeometricDataLoader for variable-sized graphs
-    # train_loader = GeometricDataLoader(train_graphs, batch_size=16, shuffle=True)
-    # # val_loader = GeometricDataLoader(val_graphs, batch_size=16)
-
-    # # Check data loader outputs
-    # for batch in train_loader:
-    #     print(batch)
-
     # Model, Optimizer, Criterion
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = BertGNNClassifier("bert-base-uncased", gnn_hidden_dim=128, num_classes=num_classes).to(device)
+    model = BertGNNClassifier(gnn_hidden_dim=128, num_classes=num_classes).to(device)
     optimizer = Adam(model.parameters(), lr=1e-4)
     criterion = nn.CrossEntropyLoss()
 
